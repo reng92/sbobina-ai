@@ -61,7 +61,7 @@ export async function splitAudio(
     ]);
 
     const data = await ff.readFile(outputName);
-    chunks.push(new Blob([data], { type: "audio/mpeg" }));
+    chunks.push(new Blob([data instanceof Uint8Array ? data.buffer as ArrayBuffer : data], { type: "audio/mpeg" }));
     await ff.deleteFile(outputName);
   }
 
