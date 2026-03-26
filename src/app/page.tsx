@@ -1,5 +1,5 @@
-"use client";
-import { useState, useRef } from "react";
+﻿"use client";
+import { useState } from "react";
 import { splitAudio } from "@/hooks/useAudioChunker";
 
 export default function Home() {
@@ -10,10 +10,11 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [wordCount, setWordCount] = useState(0);
-  const dropRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
+    setIsDragging(false);
     const dropped = e.dataTransfer.files[0];
     if (dropped) setFile(dropped);
   }
@@ -24,31 +25,26 @@ export default function Home() {
     setTranscript("");
     setProgress(0);
     setWordCount(0);
-
     try {
       setStatus("Caricamento motore audio...");
       const chunks = await splitAudio(file, 300);
       let fullText = "";
-
       for (let i = 0; i < chunks.length; i++) {
-        setStatus(`Trascrizione segmento ${i + 1} di ${chunks.length}`);
+        setStatus(`Segmento ${i + 1} di ${chunks.length}`);
         const form = new FormData();
         form.append("chunk", new File([chunks[i]], `chunk_${i}.mp3`, { type: "audio/mpeg" }));
         form.append("language", language);
-
         const res = await fetch("/api/transcribe", { method: "POST", body: form });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-
         fullText += (fullText ? " " : "") + data.text;
         setTranscript(fullText);
-        setWordCount(fullText.split(" ").length);
+        setWordCount(fullText.trim().split(/\s+/).length);
         setProgress(Math.round(((i + 1) / chunks.length) * 100));
       }
-
-      setStatus("Completato");
+      setStatus("done");
     } catch (e: unknown) {
-      setStatus("Errore: " + (e instanceof Error ? e.message : String(e)));
+      setStatus("error:" + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }
@@ -62,164 +58,129 @@ export default function Home() {
     a.click();
   }
 
-  function formatSize(bytes: number) {
-    return bytes > 1024 * 1024
-      ? (bytes / (1024 * 1024)).toFixed(1) + " MB"
-      : (bytes / 1024).toFixed(0) + " KB";
-  }
+  const isError = status.startsWith("error:");
+  const errorMsg = isError ? status.replace("error:", "") : "";
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* Ambient background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl" />
+    <div style={{ minHeight: "100vh", background: "#08080f", color: "white", fontFamily: "system-ui, sans-serif" }}>
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+        <div style={{ position: "absolute", top: "-20%", left: "-10%", width: "600px", height: "600px", background: "radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)", borderRadius: "50%" }} />
+        <div style={{ position: "absolute", top: "40%", right: "-15%", width: "500px", height: "500px", background: "radial-gradient(circle, rgba(79,70,229,0.12) 0%, transparent 70%)", borderRadius: "50%" }} />
+        <div style={{ position: "absolute", bottom: "-10%", left: "30%", width: "400px", height: "400px", background: "radial-gradient(circle, rgba(139,92,246,0.08) 0%, transparent 70%)", borderRadius: "50%" }} />
       </div>
 
-      <div className="relative z-10 max-w-2xl mx-auto px-6 py-16">
+      <div style={{ position: "relative", zIndex: 1, maxWidth: "480px", margin: "0 auto", padding: "48px 20px 80px" }}>
 
-        {/* Header */}
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-violet-300 mb-6 backdrop-blur">
-            <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
-            Powered by Whisper large-v3
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: "40px" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.25)", borderRadius: "100px", padding: "6px 16px" }}>
+            <div style={{ width: "6px", height: "6px", background: "#a78bfa", borderRadius: "50%", animation: "pulse 2s infinite" }} />
+            <span style={{ fontSize: "12px", color: "#a78bfa", letterSpacing: "0.05em" }}>Whisper large-v3 · Groq</span>
           </div>
-          <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-br from-white via-white/90 to-white/40 bg-clip-text text-transparent mb-3">
-            SbobinaAI
+        </div>
+
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h1 style={{ fontSize: "52px", fontWeight: "800", letterSpacing: "-0.03em", lineHeight: 1, margin: "0 0 12px", background: "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.5) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            Sbobina<span style={{ background: "linear-gradient(135deg, #7c3aed, #6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>AI</span>
           </h1>
-          <p className="text-white/40 text-sm">
-            Carica una lezione, ottieni la trascrizione completa
+          <p style={{ fontSize: "15px", color: "rgba(255,255,255,0.35)", margin: 0 }}>
+            Carica una lezione, ottieni la trascrizione
           </p>
         </div>
 
-        {/* Upload zone */}
         <div
-          ref={dropRef}
           onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className="group relative mb-4"
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          style={{ position: "relative", marginBottom: "16px", borderRadius: "24px", border: `1px solid ${isDragging ? "rgba(124,58,237,0.6)" : "rgba(255,255,255,0.07)"}`, background: isDragging ? "rgba(124,58,237,0.08)" : "rgba(255,255,255,0.025)", backdropFilter: "blur(20px)", transition: "all 0.3s ease", overflow: "hidden" }}
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-violet-600/20 to-indigo-600/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <label className="relative flex flex-col items-center justify-center w-full h-44 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] backdrop-blur cursor-pointer transition-all duration-300 hover:border-violet-500/40">
-            <input
-              type="file"
-              accept="audio/*,video/*"
-              className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
+          <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "180px", cursor: "pointer", padding: "24px" }}>
+            <input type="file" accept="audio/*,video/*" style={{ display: "none" }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             {file ? (
-              <div className="text-center px-6">
-                <div className="text-3xl mb-2">🎵</div>
-                <p className="font-medium text-white/90 text-sm truncate max-w-xs">{file.name}</p>
-                <p className="text-white/30 text-xs mt-1">{formatSize(file.size)}</p>
-                <p className="text-violet-400 text-xs mt-3">Clicca per cambiare file</p>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "40px", marginBottom: "12px" }}>🎵</div>
+                <p style={{ fontSize: "14px", fontWeight: "600", color: "rgba(255,255,255,0.85)", margin: "0 0 4px", maxWidth: "280px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
+                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.25)", margin: "0 0 12px" }}>
+                  {file.size > 1024 * 1024 ? (file.size / (1024 * 1024)).toFixed(1) + " MB" : (file.size / 1024).toFixed(0) + " KB"}
+                </p>
+                <span style={{ fontSize: "11px", color: "#a78bfa", background: "rgba(124,58,237,0.15)", padding: "4px 12px", borderRadius: "100px" }}>Cambia file</span>
               </div>
             ) : (
-              <div className="text-center px-6">
-                <div className="text-3xl mb-3 opacity-40">⬆</div>
-                <p className="text-white/50 text-sm">Trascina qui il file audio</p>
-                <p className="text-white/25 text-xs mt-1">oppure clicca per selezionare</p>
-                <p className="text-white/20 text-xs mt-3">MP3 · MP4 · WAV · M4A · OGG · FLAC</p>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "32px", marginBottom: "14px", opacity: 0.3 }}>↑</div>
+                <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.4)", margin: "0 0 6px" }}>Trascina il file qui</p>
+                <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.2)", margin: "0 0 14px" }}>oppure clicca per selezionare</p>
+                <div style={{ display: "flex", gap: "6px", justifyContent: "center", flexWrap: "wrap" }}>
+                  {["MP3","MP4","WAV","M4A","OGG"].map(f => (
+                    <span key={f} style={{ fontSize: "10px", color: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "6px", padding: "3px 8px" }}>{f}</span>
+                  ))}
+                </div>
               </div>
             )}
           </label>
         </div>
 
-        {/* Language + Button */}
-        <div className="flex gap-3 mb-8">
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            className="bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/70 backdrop-blur focus:outline-none focus:border-violet-500/50 transition-colors"
-          >
+        <div style={{ marginBottom: "16px" }}>
+          <select value={language} onChange={(e) => setLanguage(e.target.value)} style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "16px", padding: "14px 18px", fontSize: "14px", color: "rgba(255,255,255,0.6)", outline: "none", cursor: "pointer" }}>
             <option value="it">🇮🇹 Italiano</option>
             <option value="en">🇬🇧 English</option>
             <option value="fr">🇫🇷 Français</option>
             <option value="es">🇪🇸 Español</option>
             <option value="de">🇩🇪 Deutsch</option>
           </select>
-
-          <button
-            onClick={handleTranscribe}
-            disabled={!file || loading}
-            className="flex-1 relative group overflow-hidden rounded-xl py-3 px-6 font-semibold text-sm transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-violet-900/30"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                Elaborazione...
-              </span>
-            ) : (
-              "Avvia Sbobinatura →"
-            )}
-          </button>
         </div>
 
-        {/* Progress */}
+        <button
+          onClick={handleTranscribe}
+          disabled={!file || loading}
+          style={{ width: "100%", padding: "16px", borderRadius: "16px", border: "none", background: !file || loading ? "rgba(124,58,237,0.2)" : "linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)", color: !file || loading ? "rgba(255,255,255,0.3)" : "white", fontSize: "15px", fontWeight: "600", cursor: !file || loading ? "not-allowed" : "pointer", transition: "all 0.3s ease", boxShadow: !file || loading ? "none" : "0 8px 32px rgba(124,58,237,0.35)", marginBottom: "32px" }}
+        >
+          {loading ? `Trascrizione · ${progress}%` : "Avvia Sbobinatura →"}
+        </button>
+
         {loading && (
-          <div className="mb-8 bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-xs text-white/40">{status}</span>
-              <span className="text-xs font-mono text-violet-400">{progress}%</span>
+          <div style={{ marginBottom: "24px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "20px", padding: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+              <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.35)" }}>{status}</span>
+              <span style={{ fontSize: "13px", fontWeight: "600", color: "#a78bfa" }}>{progress}%</span>
             </div>
-            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-700 ease-out"
-                style={{ width: `${progress}%` }}
-              />
+            <div style={{ background: "rgba(255,255,255,0.05)", borderRadius: "100px", height: "4px", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${progress}%`, background: "linear-gradient(90deg, #7c3aed, #6366f1)", borderRadius: "100px", transition: "width 0.7s ease" }} />
             </div>
           </div>
         )}
 
-        {/* Result */}
+        {isError && (
+          <div style={{ marginBottom: "24px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "16px", padding: "16px 20px" }}>
+            <p style={{ fontSize: "13px", color: "#fca5a5", margin: 0 }}>❌ {errorMsg}</p>
+          </div>
+        )}
+
         {transcript && (
-          <div className="bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-white/80">Trascrizione</span>
-                <span className="text-xs bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5 text-white/30">
-                  {wordCount.toLocaleString()} parole
-                </span>
-                {status === "Completato" && (
-                  <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full px-2.5 py-0.5">
-                    ✓ {status}
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => navigator.clipboard.writeText(transcript)}
-                  className="text-xs text-white/30 hover:text-white/70 bg-white/5 hover:bg-white/10 border border-white/5 px-3 py-1.5 rounded-lg transition-all"
-                >
-                  Copia
-                </button>
-                <button
-                  onClick={downloadTxt}
-                  className="text-xs text-violet-300 hover:text-violet-200 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-3 py-1.5 rounded-lg transition-all"
-                >
-                  Scarica .txt
-                </button>
+          <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "24px", overflow: "hidden" }}>
+            <div style={{ padding: "18px 20px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "13px", fontWeight: "600", color: "rgba(255,255,255,0.7)" }}>Trascrizione</span>
+                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "100px", padding: "3px 10px" }}>{wordCount.toLocaleString("it-IT")} parole</span>
+                {status === "done" && <span style={{ fontSize: "11px", color: "#34d399", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: "100px", padding: "3px 10px" }}>✓ Completato</span>}
               </div>
             </div>
-            <textarea
-              value={transcript}
-              readOnly
-              rows={14}
-              className="w-full bg-transparent px-5 py-4 text-sm leading-7 text-white/60 resize-none focus:outline-none font-mono"
-            />
+            <textarea value={transcript} readOnly rows={12} style={{ width: "100%", background: "transparent", border: "none", padding: "20px", fontSize: "14px", lineHeight: "1.8", color: "rgba(255,255,255,0.55)", resize: "vertical", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+            <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", gap: "10px" }}>
+              <button onClick={() => navigator.clipboard.writeText(transcript)} style={{ flex: 1, padding: "12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", color: "rgba(255,255,255,0.5)", fontSize: "13px", fontWeight: "500", cursor: "pointer" }}>📋 Copia</button>
+              <button onClick={downloadTxt} style={{ flex: 1, padding: "12px", background: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.25)", borderRadius: "12px", color: "#a78bfa", fontSize: "13px", fontWeight: "500", cursor: "pointer" }}>💾 Scarica .txt</button>
+            </div>
           </div>
         )}
 
-        {/* Footer */}
-        <p className="text-center text-white/15 text-xs mt-10">
-          Gratis · Nessun dato salvato · Elaborazione in cloud
-        </p>
-
+        <p style={{ textAlign: "center", fontSize: "12px", color: "rgba(255,255,255,0.1)", marginTop: "40px" }}>Gratis · Nessun dato salvato · Elaborazione in cloud</p>
       </div>
+
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        select option { background: #1a1a2e; color: white; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.3); border-radius: 4px; }
+      `}</style>
     </div>
   );
 }
