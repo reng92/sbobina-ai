@@ -60,13 +60,35 @@ export default function Home() {
         const form = new FormData();
         form.append("chunk", new File([chunks[i]], `chunk_${i}.mp3`, { type: "audio/mpeg" }));
         form.append("language", language);
-        const res = await fetch("/api/transcribe", { method: "POST", body: form });
-        const data = await res.json();
+
+        let data: { text?: string; error?: string } = {};
+        let attempts = 0;
+
+        while (attempts < 3) {
+          try {
+            const res = await fetch("/api/transcribe", { method: "POST", body: form });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            data = await res.json();
+            if (!data.error) break;
+            throw new Error(data.error);
+          } catch (err) {
+            attempts++;
+            if (attempts >= 3) throw err;
+            setStatus(`Segmento ${i + 1} — retry ${attempts}...`);
+            await new Promise(r => setTimeout(r, 2000 * attempts));
+          }
+        }
+
         if (data.error) throw new Error(data.error);
         fullText += (fullText ? " " : "") + data.text;
         setTranscript(fullText);
         setWordCount(fullText.trim().split(/\s+/).length);
         setProgress(Math.round(((i + 1) / chunks.length) * 100));
+
+        // Pausa tra chunk per evitare rate limit Groq
+        if (i < chunks.length - 1) {
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
       setStatus("done");
     } catch (e: unknown) {
