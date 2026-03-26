@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "next": "15.x.x",
+    "react": "^19.x.x",
+    "react-dom": "^19.x.x",
+    "groq": "...",
+    ...
+  }
+}
