@@ -12,7 +12,7 @@
     "next": "15.2.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "groq": "^3.0.0",
+    "groq-sdk": "^0.8.0",
     "@ffmpeg/ffmpeg": "^0.12.10",
     "@ffmpeg/util": "^0.12.1"
   },
