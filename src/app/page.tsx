@@ -52,7 +52,7 @@ export default function Home() {
     setProgress(0);
     setWordCount(0);
     try {
-      setStatus("Caricamento motore audio...");
+      setStatus("Fase 1/2: Compressione e preparazione audio...");
       const chunks = await splitAudio(file, 300);
       let fullText = "";
       for (let i = 0; i < chunks.length; i++) {
