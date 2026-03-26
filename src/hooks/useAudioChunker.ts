@@ -22,7 +22,7 @@ async function getFFmpeg(): Promise<FFmpeg> {
 
 export async function splitAudio(
   file: File,
-  chunkSeconds = 600
+  chunkSeconds = 300
 ): Promise<Blob[]> {
   const ff = await getFFmpeg();
   const ext = file.name.split(".").pop() ?? "mp3";
@@ -56,7 +56,7 @@ export async function splitAudio(
       "-t", String(chunkSeconds),
       "-ar", "16000",
       "-ac", "1",
-      "-b:a", "64k",
+      "-b:a", "32k",
       outputName,
     ]);
 
