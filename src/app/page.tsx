@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { splitAudio } from "@/hooks/useAudioChunker";
 
 export default function Home() {
@@ -9,44 +9,46 @@ export default function Home() {
   const [status, setStatus] = useState("");
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [wordCount, setWordCount] = useState(0);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) setFile(dropped);
+  }
 
   async function handleTranscribe() {
     if (!file) return;
     setLoading(true);
     setTranscript("");
     setProgress(0);
+    setWordCount(0);
 
     try {
-      setStatus("⚙️ Caricamento ffmpeg e suddivisione audio...");
-      const chunks = await splitAudio(file, 600);
+      setStatus("Caricamento motore audio...");
+      const chunks = await splitAudio(file, 300);
       let fullText = "";
 
       for (let i = 0; i < chunks.length; i++) {
-        setStatus(`🎙️ Trascrizione chunk ${i + 1} di ${chunks.length}...`);
+        setStatus(`Trascrizione segmento ${i + 1} di ${chunks.length}`);
         const form = new FormData();
-        form.append(
-          "chunk",
-          new File([chunks[i]], `chunk_${i}.mp3`, { type: "audio/mpeg" })
-        );
+        form.append("chunk", new File([chunks[i]], `chunk_${i}.mp3`, { type: "audio/mpeg" }));
         form.append("language", language);
 
-        const res = await fetch("/api/transcribe", {
-          method: "POST",
-          body: form,
-        });
+        const res = await fetch("/api/transcribe", { method: "POST", body: form });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
 
         fullText += (fullText ? " " : "") + data.text;
         setTranscript(fullText);
+        setWordCount(fullText.split(" ").length);
         setProgress(Math.round(((i + 1) / chunks.length) * 100));
       }
 
-      setStatus("✅ Trascrizione completata!");
+      setStatus("Completato");
     } catch (e: unknown) {
-      setStatus(
-        "❌ Errore: " + (e instanceof Error ? e.message : String(e))
-      );
+      setStatus("Errore: " + (e instanceof Error ? e.message : String(e)));
     } finally {
       setLoading(false);
     }
@@ -60,47 +62,76 @@ export default function Home() {
     a.click();
   }
 
+  function formatSize(bytes: number) {
+    return bytes > 1024 * 1024
+      ? (bytes / (1024 * 1024)).toFixed(1) + " MB"
+      : (bytes / 1024).toFixed(0) + " KB";
+  }
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-950 text-white p-8">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Ambient background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative z-10 max-w-2xl mx-auto px-6 py-16">
 
         {/* Header */}
-        <h1 className="text-4xl font-bold text-center mb-2">🎓 SbobinaAI</h1>
-        <p className="text-center text-slate-400 mb-10">
-          Trascrivi lezioni universitarie lunghe — gratis, con Whisper
-        </p>
+        <div className="text-center mb-14">
+          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-violet-300 mb-6 backdrop-blur">
+            <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-pulse" />
+            Powered by Whisper large-v3
+          </div>
+          <h1 className="text-5xl font-bold tracking-tight bg-gradient-to-br from-white via-white/90 to-white/40 bg-clip-text text-transparent mb-3">
+            SbobinaAI
+          </h1>
+          <p className="text-white/40 text-sm">
+            Carica una lezione, ottieni la trascrizione completa
+          </p>
+        </div>
 
-        {/* Upload Card */}
-        <div className="bg-slate-800/60 rounded-2xl p-6 mb-6 border border-slate-700">
-          <label className="block text-sm font-medium mb-2">
-            📁 File Audio (MP3, MP4, WAV, M4A, OGG...)
+        {/* Upload zone */}
+        <div
+          ref={dropRef}
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          className="group relative mb-4"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-violet-600/20 to-indigo-600/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <label className="relative flex flex-col items-center justify-center w-full h-44 rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] backdrop-blur cursor-pointer transition-all duration-300 hover:border-violet-500/40">
+            <input
+              type="file"
+              accept="audio/*,video/*"
+              className="hidden"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            {file ? (
+              <div className="text-center px-6">
+                <div className="text-3xl mb-2">🎵</div>
+                <p className="font-medium text-white/90 text-sm truncate max-w-xs">{file.name}</p>
+                <p className="text-white/30 text-xs mt-1">{formatSize(file.size)}</p>
+                <p className="text-violet-400 text-xs mt-3">Clicca per cambiare file</p>
+              </div>
+            ) : (
+              <div className="text-center px-6">
+                <div className="text-3xl mb-3 opacity-40">⬆</div>
+                <p className="text-white/50 text-sm">Trascina qui il file audio</p>
+                <p className="text-white/25 text-xs mt-1">oppure clicca per selezionare</p>
+                <p className="text-white/20 text-xs mt-3">MP3 · MP4 · WAV · M4A · OGG · FLAC</p>
+              </div>
+            )}
           </label>
-          <input
-            type="file"
-            accept="audio/*,video/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="w-full text-sm text-slate-400
-                       file:mr-4 file:py-2 file:px-4 file:rounded-full
-                       file:border-0 file:bg-indigo-600 file:text-white
-                       hover:file:bg-indigo-500 cursor-pointer"
-          />
+        </div>
 
-          {file && (
-            <p className="mt-2 text-xs text-slate-500">
-              📎 {file.name} —{" "}
-              {file.size > 1024 * 1024
-                ? (file.size / (1024 * 1024)).toFixed(1) + " MB"
-                : (file.size / 1024).toFixed(0) + " KB"}
-            </p>
-          )}
-
-          <label className="block text-sm font-medium mt-5 mb-2">
-            🌍 Lingua della lezione
-          </label>
+        {/* Language + Button */}
+        <div className="flex gap-3 mb-8">
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="bg-slate-700 rounded-lg px-3 py-2 text-sm border border-slate-600"
+            className="bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-sm text-white/70 backdrop-blur focus:outline-none focus:border-violet-500/50 transition-colors"
           >
             <option value="it">🇮🇹 Italiano</option>
             <option value="en">🇬🇧 English</option>
@@ -112,72 +143,83 @@ export default function Home() {
           <button
             onClick={handleTranscribe}
             disabled={!file || loading}
-            className="mt-6 w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500
-                       disabled:opacity-40 disabled:cursor-not-allowed
-                       font-semibold text-lg transition-all duration-200"
+            className="flex-1 relative group overflow-hidden rounded-xl py-3 px-6 font-semibold text-sm transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-violet-900/30"
           >
-            {loading ? "⏳ Elaborazione in corso..." : "🚀 Avvia Sbobinatura"}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Elaborazione...
+              </span>
+            ) : (
+              "Avvia Sbobinatura →"
+            )}
           </button>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress */}
         {loading && (
-          <div className="mb-6 bg-slate-800/40 rounded-2xl p-5 border border-slate-700">
-            <p className="text-sm text-slate-300 mb-3">{status}</p>
-            <div className="w-full bg-slate-700 rounded-full h-4">
+          <div className="mb-8 bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-xs text-white/40">{status}</span>
+              <span className="text-xs font-mono text-violet-400">{progress}%</span>
+            </div>
+            <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-indigo-500 h-4 rounded-full transition-all duration-500 ease-out"
+                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-700 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-right text-xs text-slate-500 mt-2">
-              {progress}%
-            </p>
           </div>
         )}
 
         {/* Result */}
         {transcript && (
-          <div className="bg-slate-800/60 rounded-2xl p-6 border border-slate-700">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-xl">📝 Trascrizione</h2>
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl backdrop-blur overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-white/80">Trascrizione</span>
+                <span className="text-xs bg-white/5 border border-white/10 rounded-full px-2.5 py-0.5 text-white/30">
+                  {wordCount.toLocaleString()} parole
+                </span>
+                {status === "Completato" && (
+                  <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full px-2.5 py-0.5">
+                    ✓ {status}
+                  </span>
+                )}
+              </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => navigator.clipboard.writeText(transcript)}
-                  className="text-xs bg-slate-700 hover:bg-slate-600
-                             px-4 py-2 rounded-lg transition-colors"
+                  className="text-xs text-white/30 hover:text-white/70 bg-white/5 hover:bg-white/10 border border-white/5 px-3 py-1.5 rounded-lg transition-all"
                 >
-                  📋 Copia tutto
+                  Copia
                 </button>
                 <button
                   onClick={downloadTxt}
-                  className="text-xs bg-indigo-700 hover:bg-indigo-600
-                             px-4 py-2 rounded-lg transition-colors"
+                  className="text-xs text-violet-300 hover:text-violet-200 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 px-3 py-1.5 rounded-lg transition-all"
                 >
-                  💾 Scarica .txt
+                  Scarica .txt
                 </button>
               </div>
             </div>
             <textarea
               value={transcript}
               readOnly
-              rows={16}
-              className="w-full bg-slate-900/70 rounded-xl p-4
-                         text-sm leading-relaxed text-slate-200
-                         resize-y focus:outline-none border border-slate-700"
+              rows={14}
+              className="w-full bg-transparent px-5 py-4 text-sm leading-7 text-white/60 resize-none focus:outline-none font-mono"
             />
-            <p className="text-xs text-slate-500 mt-2 text-right">
-              {transcript.split(" ").length} parole
-            </p>
           </div>
         )}
 
-        {/* Status message */}
-        {!loading && status && (
-          <p className="text-center text-sm mt-4 text-slate-400">{status}</p>
-        )}
+        {/* Footer */}
+        <p className="text-center text-white/15 text-xs mt-10">
+          Gratis · Nessun dato salvato · Elaborazione in cloud
+        </p>
 
       </div>
-    </main>
+    </div>
   );
 }
